@@ -33,8 +33,8 @@ class MainActivity : Activity() {
         root.addView(status)
 
         phone = EditText(this)
-        phone.hint = "Numéro avec indicatif, sans + (ex : 22370000000)"
-        phone.inputType = InputType.TYPE_CLASS_PHONE
+        phone.hint = "Numéros avec indicatif, séparés par des virgules (20 max)"
+        phone.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         phone.setText(prefs.getString("phone", ""))
         root.addView(phone)
 
@@ -73,9 +73,7 @@ class MainActivity : Activity() {
     }
 
     private fun save() {
-        val digits = phone.text.toString().filter { it.isDigit() }
-        saveSettings(digits, message.text.toString())
-        phone.setText(digits)
+        saveSettings(phone.text.toString().replace("+", ""), message.text.toString())
     }
 }
 // FIN
