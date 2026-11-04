@@ -16,6 +16,9 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     }
 
     private val handler = Handler(Looper.getMainLooper())
+    private val queue = ArrayList<String>()
+    private var message = ""
+    private var busy = false
     private var attempts = 0
 
     override fun onServiceConnected() {
@@ -33,17 +36,30 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     fun sendNow() {
-        handler.post { openChat() }
+        handler.post { start() }
     }
 
-    private fun openChat() {
+    private fun start() {
+        if (busy) return
         val prefs = getSharedPreferences("secouzap", MODE_PRIVATE)
-        val phone = prefs.getString("phone", "") ?: ""
-        val message = prefs.getString("message", "") ?: ""
-        if (phone.isEmpty() || message.isEmpty()) {
+        message = prefs.getString("message", "") ?: ""
+        val numbers = parseNumbers(prefs.getString("phone", "") ?: "")
+        if (numbers.isEmpty() || message.isEmpty()) {
             Toast.makeText(this, "Numéro ou message vide", Toast.LENGTH_LONG).show()
             return
         }
+        queue.clear()
+        queue.addAll(numbers)
+        busy = true
+        next()
+    }
+
+    private fun next() {
+        if (queue.isEmpty()) {
+            busy = false
+            return
+        }
+        val phone = queue.removeAt(0)
         val link = "whatsapp://send?phone=" + phone + "&text=" + Uri.encode(message)
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link))
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -51,18 +67,22 @@ class WhatsAppAccessibilityService : AccessibilityService() {
             startActivity(intent)
         } catch (e: Exception) {
             Toast.makeText(this, "Impossible d'ouvrir WhatsApp", Toast.LENGTH_LONG).show()
+            queue.clear()
+            busy = false
             return
         }
         attempts = 0
-        handler.removeCallbacksAndMessages(null)
         handler.postDelayed({ tryClick() }, 2000)
     }
 
     private fun tryClick() {
         attempts++
-        val done = clickSend(rootInActiveWindow)
-        if (!done && attempts < 24) {
+        if (clickSend(rootInActiveWindow)) {
+            handler.postDelayed({ next() }, 4000)
+        } else if (attempts < 24) {
             handler.postDelayed({ tryClick() }, 500)
+        } else {
+            handler.postDelayed({ next() }, 1000)
         }
     }
 }
